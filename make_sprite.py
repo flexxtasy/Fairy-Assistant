@@ -6,8 +6,11 @@ the face was damaged, graft the head from the clean surprised cutout.
 Result: a single consistent character image; make_full.py animates THAT.
 """
 from PIL import Image, ImageDraw
+import os
 
-SRC = "/home/fairy/Pictures/fairy body.jpg"
+# your own copy of the donor image(s): set FAIRY_SRC_SPRITE to wherever you
+# keep them; the fallback is this machine's local path.
+SRC = os.environ.get("FAIRY_SRC_SPRITE", "/home/fairy/Pictures/fairy body.jpg")
 
 im = Image.open(SRC).convert("RGB")
 W, H = im.size

@@ -22,7 +22,10 @@ import random
 
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
-SRC = "/home/fairy/Pictures/RandomPics/NPC_Fairy.webp"
+# your own copy of the donor image: set FAIRY_SRC_ANIM to wherever you keep
+# it; the fallback is this machine's local path.
+SRC = os.environ.get("FAIRY_SRC_ANIM",
+                     "/home/fairy/Pictures/RandomPics/NPC_Fairy.webp")
 SS = 3  # supersample factor for smooth mask
 
 

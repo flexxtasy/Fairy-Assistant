@@ -57,8 +57,8 @@ every exchange is appended to `fairy_chat.jsonl` (gitignored).
   hermes chat --in DIR --no-restore-cwd -q SEED`, where SEED is the last 10
   exchanges framed as a handoff ("pick up where Fairy left off"). On a TTY,
   `hermes chat -q` seeds the transcript as the session's first turn, so full
-  Hermes continues the exact conversation. DIR defaults to `/home/fairy/vaults`
-  (`FAIRY_HERMES_DIR` overrides).
+  Hermes continues the exact conversation. DIR defaults to `~/vaults` when it
+  exists, otherwise your home directory (`FAIRY_HERMES_DIR` overrides).
 
 Brain failures render a deadpan GLITCH line instead of hanging.
 
