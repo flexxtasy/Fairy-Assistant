@@ -152,7 +152,8 @@ QT_QPA_PLATFORM=offscreen python3 test_compat.py     # cross-platform tool plumb
   in-game material and remains HoYoverse's intellectual property.
 - The **code** in this repo (scripts, pipeline, app) is open source under the
   [MIT License](LICENSE) — use it, fork it, tinker with it freely. The
-  **art** is fan content, not MIT-licensed material.
+  **art** is fan content, not MIT-licensed material; the code/art boundary is
+  spelled out in [NOTICE](NOTICE).
 - Hermes handoff integration connects to the [Hermes Agent](https://hermes-agent.nousresearch.com)
   by Nous Research. Hermes is not required to run Fairy.
 - Thanks to the open-source communities behind Python, Qt/PySide6, llama.cpp,
