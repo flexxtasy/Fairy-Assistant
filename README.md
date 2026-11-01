@@ -6,7 +6,7 @@ talks with dry, sarcastic loyalty, **acts** on your machine with real tools
 (open apps, run commands), and can hand any conversation to the full Hermes
 agent with one sentence. 100% local — her brain is a local LLM server, no cloud.
 
-![Fairy demo](media/demo_smooth.gif)
+![Fairy demo](media/demo_fairy_v7.gif)
 
 ## What she does (deployed & verified)
 
