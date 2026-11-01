@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+config.json
+fairy_position.json
+fairy_chat.jsonl
+snap*/
+grab_tmp/
+*.log
