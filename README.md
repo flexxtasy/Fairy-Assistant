@@ -1,5 +1,9 @@
 # FAIRY — a desktop AI companion (Zenless Zone Zero fan project)
 
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Platform: Linux](https://img.shields.io/badge/OS-Linux-blue)
+![Platform: Windows](https://img.shields.io/badge/OS-Windows-blue)
+
 Fairy is the fictional AI assistant from **Zenless Zone Zero** — rebuilt as a
 real desktop assistant. She sits on your desktop as a small animated ZZZ ring,
 talks with dry, sarcastic loyalty, **acts** on your machine with real tools
@@ -139,9 +143,20 @@ QT_QPA_PLATFORM=offscreen python3 test_compat.py     # cross-platform tool plumb
 - Rich-reply media panel (yellow corner brackets).
 - Optional true desktop-layer placement via Wayland layer-shell.
 
-## Notes
+## Credits & license
 
-- Fan project: Fairy and Zenless Zone Zero are trademarks of their respective
-  owners (HoYoverse). This repo exists for learning and fun; sprite assets are
-  fan-made derivatives of supplied game material.
-- Expect rough edges and fast iteration.
+- **HOYOVERSE** created Fairy, *Zenless Zone Zero*, and its world — all of
+  which are their property. This is an unofficial, non-commercial fan
+  project made by a fan, **not affiliated with or endorsed by HoYoverse /
+  miHoYo**. All sprite art in this repo is fan-made derivative work based on
+  in-game material and remains HoYoverse's intellectual property.
+- The **code** in this repo (scripts, pipeline, app) is open source under the
+  [MIT License](LICENSE) — use it, fork it, tinker with it freely. The
+  **art** is fan content, not MIT-licensed material.
+- Hermes handoff integration connects to the [Hermes Agent](https://hermes-agent.nousresearch.com)
+  by Nous Research. Hermes is not required to run Fairy.
+- Thanks to the open-source communities behind Python, Qt/PySide6, llama.cpp,
+  Ollama, vLLM, and LM Studio that make a fully local assistant possible.
+
+Special thanks to the ZZZ community for the reference material that made
+Fairy feel like *her*.
