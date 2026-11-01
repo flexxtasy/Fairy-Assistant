@@ -65,7 +65,7 @@ w.set_state("THINKING")
 pump(10, 90)
 
 # 4) she speaks (current persona voice, typewriter live)
-w._say("Relocated. I approve of the new view.")
+w._say("The ring rotates, Master. It never complains. I do.")
 for _ in range(46):
     w.tick()
     snap(70)
