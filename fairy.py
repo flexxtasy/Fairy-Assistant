@@ -32,6 +32,7 @@ import sys
 import threading
 import time
 import urllib.request
+import webbrowser
 
 from PySide6.QtCore import Qt, QTimer, QRectF, QPointF, QThread, Signal, QCoreApplication
 from PySide6.QtGui import (QPainter, QPixmap, QColor, QFont, QPen, QBrush,
@@ -113,40 +114,74 @@ def load_pack(path):
 
 
 # ---- tool layer: Fairy's hands on Master's desktop -----------------------
-FULL_PATH = ":".join([
-    os.path.expanduser("~/.local/bin"),
-    "/run/current-system/sw/bin",
-    os.path.expanduser("~/.nix-profile/bin"),
-    "/nix/var/nix/profiles/default/bin",
-    "/usr/local/bin", "/usr/bin", "/bin",
-])
+IS_WINDOWS = os.name == "nt"
+
+if IS_WINDOWS:
+    FULL_PATH = os.environ.get("PATH", "")
+else:
+    FULL_PATH = ":".join([
+        os.path.expanduser("~/.local/bin"),
+        "/run/current-system/sw/bin",
+        os.path.expanduser("~/.nix-profile/bin"),
+        "/nix/var/nix/profiles/default/bin",
+        "/usr/local/bin", "/usr/bin", "/bin",
+    ])
 
 APP_ALIASES = {"browser": "firefox", "web": "firefox", "internet": "firefox",
                "terminal": "alacritty", "files": "dolphin", "notes": "obsidian",
                "video calls": "discord", "call discord": "discord"}
+WIN_ALIASES = {"browser": "msedge", "web": "msedge", "internet": "msedge",
+               "terminal": "wt", "files": "explorer", "notes": "notepad",
+               "video calls": "discord", "call discord": "discord"}
 
 AVAILABLE_APPS = ("firefox, discord, obsidian, alacritty (terminal), dolphin "
                   "(files), obs, packettracer, steam, hermes (via "
-                  "open_hermes_session)")
+                  "open_hermes_session)") if not IS_WINDOWS else \
+                  ("msedge, discord, notepad, explorer, wt (terminal), "
+                   "or any installed app by name, hermes (via "
+                   "open_hermes_session)")
 
 
 def gui_env():
     env = dict(os.environ)
-    env.setdefault("XDG_RUNTIME_DIR", "/run/user/1000")
-    env.setdefault("WAYLAND_DISPLAY", "wayland-1")
-    env["PATH"] = FULL_PATH
+    if not IS_WINDOWS:
+        env.setdefault("XDG_RUNTIME_DIR", "/run/user/1000")
+        env.setdefault("WAYLAND_DISPLAY", "wayland-1")
+        env["PATH"] = FULL_PATH
     return env
+
+
+def shell_argv(command):
+    """Cross-platform command runner argv."""
+    if IS_WINDOWS:
+        return [os.environ.get("COMSPEC", "cmd.exe"), "/c", str(command)]
+    bash = shutil.which("bash") or "/bin/bash"
+    return [bash, "-lc", str(command)]
 
 
 def open_app_impl(target):
     t = str(target).strip().strip("'\"")
     low = t.lower()
-    t = APP_ALIASES.get(low, t)
+    aliases = WIN_ALIASES if IS_WINDOWS else APP_ALIASES
+    t = aliases.get(low, t)
     low = t.lower()
-    if low.startswith(("http://", "https://", "www.")) or low.endswith(
-            (".png", ".jpg", ".pdf", ".md", ".txt", ".html")):
-        subprocess.Popen(["xdg-open", t if "://" in low else
-                          os.path.abspath(t)], env=gui_env())
+    if low.startswith(("http://", "https://", "www.")):
+        webbrowser.open(t if "://" in low else "https://" + t)
+        return f"opened {t} in Master's browser"
+    if IS_WINDOWS:
+        try:  # the shell resolves registered apps, files and URLs
+            os.startfile(t)
+            return f"opened {t}"
+        except OSError:
+            pass
+        exe = shutil.which(t) or shutil.which(t + ".exe")
+        if exe:
+            subprocess.Popen([exe], env=gui_env())
+            return f"opened {os.path.basename(exe)}"
+        return (f"no such app: {t}. On this machine Fairy can open: "
+                + AVAILABLE_APPS)
+    if low.endswith((".png", ".jpg", ".pdf", ".md", ".txt", ".html")):
+        subprocess.Popen(["xdg-open", os.path.abspath(t)], env=gui_env())
         return f"opened {t} with xdg-open"
     exe = (shutil.which(t, path=FULL_PATH)
            or shutil.which(low, path=FULL_PATH))
@@ -158,9 +193,14 @@ def open_app_impl(target):
 
 
 def close_app_impl(name):
+    if IS_WINDOWS:
+        done = subprocess.run(
+            shell_argv(f"taskkill /f /im {name}.exe"),
+            capture_output=True, text=True, timeout=15)
+        return ("closed " + name) if done.returncode == 0 \
+            else f"nothing named {name} was running"
     done = subprocess.run(
-        ["/run/current-system/sw/bin/bash", "-lc",
-         f"pkill -f -i {shlex.quote(str(name))}"],
+        shell_argv(f"pkill -f -i {shlex.quote(str(name))}"),
         capture_output=True, text=True, timeout=15)
     return ("closed " + name) if done.returncode == 0 \
         else f"nothing named {name} was running"
@@ -169,7 +209,7 @@ def close_app_impl(name):
 def run_command_impl(command):
     try:
         done = subprocess.run(
-            ["/run/current-system/sw/bin/bash", "-lc", str(command)],
+            shell_argv(str(command)),
             capture_output=True, text=True, timeout=120, env=gui_env())
     except subprocess.TimeoutExpired:
         return "command hit the 120 s limit and was killed"
@@ -200,8 +240,48 @@ class Brain:
                 f"plugs in, then I will actually do something about it.")
 
 
-HERMES_BIN = os.path.expanduser("~/.local/bin/hermes")
-ALACRITTY = "/run/current-system/sw/bin/alacritty"
+TERMINALS = ("alacritty", "kitty", "konsole", "gnome-terminal", "qterminal",
+             "xfce4-terminal", "xterm")
+
+
+def find_terminal():
+    for name in TERMINALS:
+        exe = shutil.which(name)
+        if exe:
+            return exe
+    if IS_WINDOWS:
+        return shutil.which("wt") or shutil.which("wt.exe")
+    return None
+
+
+def term_launch(term, title, prog_args):
+    """Per-terminal argv for 'open a titled window running prog_args'."""
+    name = os.path.basename(term).split(".")[0]
+    if name in ("alacritty", "kitty"):
+        return [term, "--title", title, "-e", *prog_args]
+    if name in ("konsole", "qterminal"):
+        # these parse options after -e themselves; hand the whole thing to bash
+        return [term, "--title", title, "-e", "bash", "-lc",
+                " ".join(shlex.quote(a) for a in prog_args)]
+    if name == "gnome-terminal":
+        return [term, "--title", title, "--", *prog_args]
+    if name == "xfce4-terminal":
+        return [term, "--title", title,
+                "-e", " ".join(shlex.quote(a) for a in prog_args)]
+    return [term, "-T", title, "-e", *prog_args]      # xterm & friends
+
+
+def find_hermes():
+    exe = (shutil.which("hermes") or shutil.which("hermes.exe")
+           or shutil.which("hermes.cmd"))
+    if exe:
+        return exe
+    for cand in ("~/.local/bin/hermes", "~/.local/bin/hermes.cmd",
+                 "~/AppData/Local/hermes/hermes.cmd"):
+        p = os.path.expanduser(cand)
+        if os.path.exists(p):
+            return p
+    return None
 
 TOOLS_SCHEMA = [
     {"type": "function", "function": {
@@ -301,17 +381,32 @@ class ToolBrain:
         return "\n".join(lines)
 
     def _open_hermes_session(self, note):
-        if not os.path.exists(HERMES_BIN):
-            return "no Hermes CLI at " + HERMES_BIN
-        workdir = os.environ.get("FAIRY_HERMES_DIR", "/home/fairy/vaults")
-        if not os.path.isdir(workdir):
-            workdir = "/home/fairy"
-        cmd = [ALACRITTY if os.path.exists(ALACRITTY) else "xterm",
-               "--title", "FAIRY // HERMES SESSION",
-               "--working-directory", workdir, "-e",
-               HERMES_BIN, "chat", "--in", workdir, "--no-restore-cwd",
-               "-q", self._seed_text(note)]
-        subprocess.Popen(cmd, env=gui_env())
+        hermes = find_hermes()
+        if hermes is None:
+            return ("no Hermes CLI found on this machine — install the "
+                    "Hermes Agent, or use Fairy's other tools")
+        term = find_terminal()
+        if term is None:
+            return "no usable terminal found for the Hermes handoff"
+        # where the Hermes session should start: Master's vaults if they
+        # exist, else his home; FAIRY_HERMES_DIR always overrides.
+        workdir = os.environ.get("FAIRY_HERMES_DIR", "")
+        if not (workdir and os.path.isdir(workdir)):
+            vaults = os.path.join(os.path.expanduser("~"), "vaults")
+            workdir = vaults if os.path.isdir(vaults) else os.path.expanduser("~")
+        seed = self._seed_text(note)
+        if IS_WINDOWS:
+            cmd = ["cmd", "/c", "start", "FAIRY // HERMES SESSION",
+                   "cmd", "/k", hermes, "chat", "--in", workdir,
+                   "-q", seed]
+        else:
+            cmd = term_launch(term, "FAIRY // HERMES SESSION",
+                              [hermes, "chat", "--in", workdir,
+                               "--no-restore-cwd", "-q", seed])
+        subprocess.Popen(cmd, env=gui_env(), cwd=workdir,
+                         stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
         return (f"opened a Hermes CLI terminal window in {workdir} seeded "
                 "with this exact conversation")
 
@@ -380,6 +475,9 @@ class ToolBrain:
         req = urllib.request.Request(self.url + "/v1/chat/completions",
                                      data=json.dumps(payload).encode(),
                                      headers={"Content-Type": "application/json"})
+        api_key = os.environ.get("FAIRY_API_KEY", "")
+        if api_key:
+            req.add_header("Authorization", "Bearer " + api_key)
         try:
             with urllib.request.urlopen(req, timeout=120) as r:
                 return json.load(r)

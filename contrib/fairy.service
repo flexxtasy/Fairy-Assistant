@@ -1,0 +1,18 @@
+# ~/.config/systemd/user/fairy.service — Linux/NixOS autostart.
+# Fix ExecStart to your clone path. For non-NixOS distros replace ExecStart with:
+#   ExecStart=/path/to/Fairy-Assistant/.venv/bin/python /path/to/Fairy-Assistant/fairy.py --brain strata --icon-only
+[Unit]
+Description=FAIRY desktop companion overlay
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/path/to/Fairy-Assistant/run.sh
+Environment=WAYLAND_DISPLAY=wayland-1
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

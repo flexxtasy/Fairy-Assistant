@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Launch FAIRY on the Wayland session from a headless context.
-# Default brain: strata (local LLM at 127.0.0.1:8080).
-# Default form: icon-only (Ramiro's standing preference).
+# Launch FAIRY on NixOS (Wayland) from a headless context.
+# On other distros use ./install.sh then ./.venv/bin/python fairy.py ...
+# Default brain: strata (local OpenAI-compatible model server).
+# Default form: icon-only (standing preference).
 #   FAIRY_FULL_BODY=1  -> allow the full-body emerge form
 #   FAIRY_BRAIN=stub|discord|strata
 #   FAIRY_STUB=1       -> same as FAIRY_BRAIN=stub
