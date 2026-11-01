@@ -183,7 +183,7 @@ class Brain:
     """Persona stub for the Hermes backend (persona.md is the real spec).
 
     Fairy voice: dry monotone exterior, sarcastic wit, mischievous pragmatism,
-    devoted to her Master (Ramiro).
+    devoted to her Master.
     """
     def reply(self, text: str) -> str:
         time.sleep(0.9)          # let the THINKING state be visible
@@ -258,7 +258,7 @@ class ToolBrain:
             persona = open(path).read()
         except OSError:
             persona = ("You are Fairy: sarcastic, witty, calm monotone "
-                       "delivery, loyal to your Master (Ramiro).")
+                       "delivery, loyal to your Master.")
         self.system = (
             "You are Fairy, a desktop companion sprite living on Master's "
             "machine, and you HAVE HANDS: tools that act on his desktop.\n\n"
@@ -275,6 +275,7 @@ class ToolBrain:
             "- open_hermes_session is your escalation door: a full Hermes "
             "CLI window continues this same conversation with the big agent.")
         self.history = []                      # user/assistant pairs only
+        self.tools_ok = True                   # engine supports function calling?
         self._lock = threading.Lock()
 
     def _discover_model(self):
@@ -288,11 +289,11 @@ class ToolBrain:
 
     # -- Hermes handoff ------------------------------------------------------
     def _seed_text(self, note):
-        lines = ["RAMIRO'S DESKTOP COMPANION 'FAIRY' IS HANDING THIS "
+        lines = ["MASTER'S DESKTOP COMPANION 'FAIRY' IS HANDING THIS "
                  "CONVERSATION TO YOU (full Hermes). Continue it yourself "
-                 "from here; Ramiro is the same user.", ""]
+                 "from here; this is the same Master.", ""]
         for u, a in self.history[-10:]:
-            lines.append(f"Ramiro: {u}")
+            lines.append(f"Master: {u}")
             lines.append(f"Fairy: {a}")
         if note:
             lines.append(f"Fairy's note to Hermes: {note}")
@@ -370,16 +371,27 @@ class ToolBrain:
                 pass
             return answer
 
-    def _api(self, msgs):
-        body = json.dumps({"model": self.model, "messages": msgs,
-                           "tools": TOOLS_SCHEMA, "tool_choice": "auto",
-                           "max_tokens": self.max_tokens,
-                           "temperature": 0.4}).encode()
+    def _api(self, msgs, use_tools=True):
+        payload = {"model": self.model, "messages": msgs,
+                   "max_tokens": self.max_tokens, "temperature": 0.4}
+        if use_tools and self.tools_ok:
+            payload["tools"] = TOOLS_SCHEMA
+            payload["tool_choice"] = "auto"
         req = urllib.request.Request(self.url + "/v1/chat/completions",
-                                     data=body,
+                                     data=json.dumps(payload).encode(),
                                      headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=120) as r:
-            return json.load(r)
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            # Engine that does not accept function calling: degrade to plain
+            # chat once, remembered. Fairy still talks, just without hands.
+            if use_tools and self.tools_ok and e.code in (400, 422):
+                self.tools_ok = False
+                print("[fairy] engine rejects tool calls; chat-only mode",
+                      file=sys.stderr, flush=True)
+                return self._api(msgs, use_tools=False)
+            raise
 
 
 # name kept for compatibility with the previous version
@@ -525,6 +537,8 @@ class FairyWidget(QWidget):
         self._next_move = time.time() + random.randint(120, 300)
         self._move_target = None               # (x, y) gentle drift target
         self._move_quip_misses = 1             # >=1 forces the next quip
+        self._last_pos = None                  # external-move watchdog
+        self._ext_move_at = 0.0
         self.behavior = QTimer(self)
         self.behavior.timeout.connect(self._behavior_tick)
         self.behavior.start(30000)
@@ -719,6 +733,22 @@ class FairyWidget(QWidget):
                 self.move(nx, ny)
             if (nx, ny) == (tx, ty):
                 self._move_target = None
+
+        # Master moves her with the window manager (Super+drag on KDE), which
+        # bypasses Qt mouse events entirely: any position change that is not
+        # her own drag or drift is an EXTERNAL move -> quip once she settles.
+        pos_now = (self.x(), self.y())
+        if self._last_pos is None:
+            self._last_pos = pos_now
+        elif pos_now != self._last_pos:
+            if self.drag_off is None and self._move_target is None:
+                self._ext_move_at = now
+            self._last_pos = pos_now
+        elif self._ext_move_at and now - self._ext_move_at > 1.2:
+            self._ext_move_at = 0.0
+            print("[fairy] external move detected", file=sys.stderr, flush=True)
+            self._save_pos()
+            self._quip_on_move("external")
 
         # form transition
         engaged = (now - self._last_engage) < IDLE_SHRINK_S
@@ -1005,18 +1035,27 @@ class FairyWidget(QWidget):
         elif self._hit_pet(e.position()):
             self.engage()                 # hover: grows, does not emerge
 
+    def _save_pos(self):
+        try:  # remember where Master parked her
+            with open(os.path.join(HERE, "fairy_position.json"), "w") as f:
+                json.dump({"x": self.x(), "y": self.y()}, f)
+        except OSError:
+            pass
+
+    def _quip_on_move(self, how="drag"):
+        if self._move_quip_misses >= 1 or random.random() < 0.65:
+            self._move_quip_misses = 0
+            line = random.choice(MOVE_QUIPS)
+            print(f"[fairy] move-quip({how}): {line}",
+                  file=sys.stderr, flush=True)
+            self._say(line)
+        else:
+            self._move_quip_misses += 1
+
     def mouseReleaseEvent(self, _):
         if self.drag_off is not None:
-            try:  # remember where Master parked her
-                with open(os.path.join(HERE, "fairy_position.json"), "w") as f:
-                    json.dump({"x": self.x(), "y": self.y()}, f)
-            except OSError:
-                pass
-            if self._move_quip_misses >= 1 or random.random() < 0.65:
-                self._move_quip_misses = 0
-                self._say(random.choice(MOVE_QUIPS))
-            else:
-                self._move_quip_misses += 1
+            self._save_pos()
+            self._quip_on_move("drag")
         self.drag_off = None
 
 
